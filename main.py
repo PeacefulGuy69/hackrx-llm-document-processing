@@ -73,7 +73,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 @app.get("/", response_model=HealthCheckResponse)
 async def root():
     """Root endpoint"""
