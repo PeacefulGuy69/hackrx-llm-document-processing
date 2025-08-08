@@ -78,6 +78,17 @@ class QueryRequest(BaseModel):
 class QueryResponse(BaseModel):
     """Response model for query processing"""
     answers: List[str] = Field(..., description="List of answers corresponding to questions")
+    structured_responses: Optional[List[Dict[str, Any]]] = Field(None, description="Structured JSON responses for each question")
+
+
+class StructuredDecisionResponse(BaseModel):
+    """Structured decision response matching problem statement requirements"""
+    decision: str = Field(..., description="Decision status: approved, rejected, or pending")
+    amount: Optional[float] = Field(None, description="Amount if applicable") 
+    justification: str = Field(..., description="Detailed justification")
+    confidence: float = Field(..., description="Confidence score (0-1)")
+    referenced_clauses: List[str] = Field(..., description="List of referenced clause summaries")
+    processing_metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional processing information")
 
 
 class DocumentProcessingRequest(BaseModel):

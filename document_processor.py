@@ -31,6 +31,10 @@ class DocumentProcessor:
     async def process_document_from_url(self, url: str, document_type: Optional[DocumentType] = None) -> List[DocumentChunk]:
         """Process document from URL and return chunks"""
         try:
+            # Check if it's a local file path
+            if os.path.exists(url) or (os.path.sep in url and not url.startswith(('http://', 'https://'))):
+                return await self.process_document_from_file(url, document_type)
+            
             # Download document
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as response:
@@ -62,6 +66,32 @@ class DocumentProcessor:
             
         except Exception as e:
             logger.error(f"Error processing document from {url}: {str(e)}")
+            raise
+    
+    async def process_document_from_file(self, file_path: str, document_type: Optional[DocumentType] = None) -> List[DocumentChunk]:
+        """Process document from local file path and return chunks"""
+        try:
+            # Check if file exists
+            if not os.path.exists(file_path):
+                raise Exception(f"File not found: {file_path}")
+            
+            # Detect document type if not provided
+            if not document_type:
+                with open(file_path, 'rb') as f:
+                    content = f.read(1024)  # Read first 1024 bytes for type detection
+                document_type = self._detect_document_type(file_path, content)
+            
+            # Extract text directly from the file
+            text_content = await self._extract_text(file_path, document_type)
+            
+            # Create chunks
+            chunks = self._create_chunks(text_content, file_path)
+            
+            logger.info(f"Processed local document {file_path}: {len(chunks)} chunks created")
+            return chunks
+            
+        except Exception as e:
+            logger.error(f"Error processing local document from {file_path}: {str(e)}")
             raise
     
     def _detect_document_type(self, url: str, content: bytes) -> DocumentType:

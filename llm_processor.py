@@ -5,7 +5,7 @@ import asyncio
 
 from models import (
     QueryRequest, QueryResponse, ProcessingResult, 
-    StructuredQuery, DocumentChunk, RetrievedClause
+    StructuredQuery, DocumentChunk, RetrievedClause, StructuredDecisionResponse
 )
 from document_processor import document_processor, document_cache
 from query_parser import query_parser
@@ -37,18 +37,25 @@ class LLMDocumentProcessor:
             
             # Process each question
             answers = []
+            structured_responses = []
             for question in request.questions:
                 try:
-                    answer = await self._process_single_question(question)
+                    answer, structured_response = await self._process_single_question(question)
                     answers.append(answer)
+                    structured_responses.append(structured_response)
                 except Exception as e:
                     logger.error(f"Error processing question '{question}': {str(e)}")
                     answers.append(f"Error processing question: {str(e)}")
+                    structured_responses.append({
+                        "decision": "error",
+                        "justification": f"Error processing question: {str(e)}",
+                        "confidence": 0.0
+                    })
             
             processing_time = time.time() - start_time
             logger.info(f"Processed {len(request.questions)} questions in {processing_time:.2f}s")
             
-            return QueryResponse(answers=answers)
+            return QueryResponse(answers=answers, structured_responses=structured_responses)
             
         except Exception as e:
             logger.error(f"Error in process_query_request: {str(e)}")
@@ -89,8 +96,8 @@ class LLMDocumentProcessor:
             logger.error(f"Error processing documents: {str(e)}")
             raise
     
-    async def _process_single_question(self, question: str) -> str:
-        """Process a single question and return the answer"""
+    async def _process_single_question(self, question: str) -> tuple[str, dict]:
+        """Process a single question and return both text answer and structured response"""
         try:
             start_time = time.time()
             
@@ -112,15 +119,24 @@ class LLMDocumentProcessor:
             # Set processing time
             processing_result.processing_time = time.time() - start_time
             
-            # Format answer
+            # Format answer and structured response
             answer = self._format_answer(processing_result)
+            structured_response = self._format_structured_response(processing_result)
             
             logger.info(f"Processed question in {processing_result.processing_time:.2f}s: {question[:50]}...")
-            return answer
+            return answer, structured_response
             
         except Exception as e:
             logger.error(f"Error processing question '{question}': {str(e)}")
-            return f"I apologize, but I encountered an error while processing this question: {str(e)}"
+            error_response = {
+                "decision": "error",
+                "justification": f"I apologize, but I encountered an error while processing this question: {str(e)}",
+                "confidence": 0.0,
+                "amount": None,
+                "referenced_clauses": [],
+                "processing_metadata": {"error": str(e)}
+            }
+            return f"I apologize, but I encountered an error while processing this question: {str(e)}", error_response
     
     def _format_answer(self, result: ProcessingResult) -> str:
         """Format the processing result into a natural language answer"""
@@ -209,6 +225,56 @@ class LLMDocumentProcessor:
             reasoning += '.'
         
         return reasoning
+    
+    def _format_structured_response(self, result: ProcessingResult) -> dict:
+        """Format the processing result into a structured JSON response as per problem statement"""
+        try:
+            # Extract key components
+            decision = result.decision
+            reasoning = result.justification.reasoning
+            confidence = result.justification.confidence_score
+            amount = result.amount
+            referenced_clauses = result.justification.referenced_clauses
+            
+            # Create referenced clauses summary
+            clause_summaries = []
+            for clause in referenced_clauses[:5]:  # Top 5 clauses
+                summary = f"From {clause.source}: {clause.content[:100]}..."
+                clause_summaries.append(summary)
+            
+            # Create structured response
+            structured_response = {
+                "decision": decision.lower(),  # approved, rejected, or pending
+                "amount": amount,
+                "justification": reasoning,
+                "confidence": round(confidence, 3),
+                "referenced_clauses": clause_summaries,
+                "processing_metadata": {
+                    "query_type": result.structured_query.query_type.value,
+                    "processing_time": round(result.processing_time, 2),
+                    "clauses_analyzed": len(referenced_clauses),
+                    "extracted_entities": {
+                        "age": result.structured_query.age,
+                        "gender": result.structured_query.gender,
+                        "procedure": result.structured_query.procedure,
+                        "location": result.structured_query.location,
+                        "policy_duration": result.structured_query.policy_duration
+                    }
+                }
+            }
+            
+            return structured_response
+            
+        except Exception as e:
+            logger.error(f"Error formatting structured response: {str(e)}")
+            return {
+                "decision": "error",
+                "amount": None,
+                "justification": "Error formatting response",
+                "confidence": 0.0,
+                "referenced_clauses": [],
+                "processing_metadata": {"error": str(e)}
+            }
     
     async def get_system_stats(self) -> Dict[str, Any]:
         """Get system statistics"""
