@@ -1,7 +1,10 @@
 [build]
   functions = "netlify/functions"
-  command = "pip install -r requirements.txt"
+  command = "python -m pip install --upgrade pip && pip install -r requirements.txt"
   publish = "."
+
+[build.environment]
+  PYTHON_VERSION = "3.11"
 
 [functions]
   node_bundler = "esbuild"
