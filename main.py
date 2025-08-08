@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
 import time
+import os
 from datetime import datetime
 
 from models import (
@@ -238,10 +239,14 @@ async def global_exception_handler(request, exc):
 if __name__ == "__main__":
     import uvicorn
     
+    # Get port from environment variable for cloud deployment compatibility
+    port = int(os.getenv("PORT", config.PORT))
+    host = os.getenv("HOST", config.HOST)
+    
     uvicorn.run(
         "main:app",
-        host=config.HOST,
-        port=config.PORT,
+        host=host,
+        port=port,
         reload=config.DEBUG,
         log_level="info"
     )

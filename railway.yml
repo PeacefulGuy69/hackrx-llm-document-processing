@@ -1,18 +1,18 @@
-version: '3.8'
+version: "3"
 
 services:
-  llm-document-processor:
-    build: .
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - BEARER_TOKEN=${BEARER_TOKEN:-60359a637b23864b320999e8d98517f239970ee339c266bde110414ce8fb9ed1}
       - HOST=0.0.0.0
       - PORT=8000
       - DEBUG=false
-    volumes:
-      - ./vector_store:/app/vector_store
+    env_file:
+      - .env
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

@@ -1,0 +1,33 @@
+{
+  "name": "hackrx-llm-document-processing",
+  "description": "Intelligent query-retrieval system for document processing",
+  "scripts": {
+    "build": "echo 'Build completed'",
+    "start": "uvicorn main:app --host 0.0.0.0 --port $PORT",
+    "dev": "uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+  },
+  "engines": {
+    "python": "3.11.6"
+  },
+  "env": {
+    "HOST": "0.0.0.0",
+    "PORT": "8000",
+    "DEBUG": "false",
+    "GEMINI_API_KEY": {
+      "description": "API key for Google Gemini",
+      "required": true
+    },
+    "BEARER_TOKEN": {
+      "description": "Bearer token for API authentication",
+      "value": "60359a637b23864b320999e8d98517f239970ee339c266bde110414ce8fb9ed1"
+    }
+  },
+  "addons": [
+    "heroku-postgresql:mini"
+  ],
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ]
+}

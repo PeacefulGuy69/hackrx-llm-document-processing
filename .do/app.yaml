@@ -1,0 +1,24 @@
+name: hackrx-llm-processor
+services:
+- name: api
+  source_dir: /
+  github:
+    repo: PeacefulGuy69/hackrx-llm-document-processing
+    branch: main
+  run_command: uvicorn main:app --host 0.0.0.0 --port $PORT
+  environment_slug: python
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  health_check:
+    http_path: /health
+  envs:
+  - key: HOST
+    value: "0.0.0.0"
+  - key: DEBUG
+    value: "false"
+  - key: GEMINI_API_KEY
+    scope: RUN_TIME
+    type: SECRET
+  - key: BEARER_TOKEN
+    value: "60359a637b23864b320999e8d98517f239970ee339c266bde110414ce8fb9ed1"
+    scope: RUN_TIME

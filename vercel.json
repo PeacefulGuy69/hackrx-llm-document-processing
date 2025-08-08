@@ -1,0 +1,29 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "main.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "50mb"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "main.py"
+    }
+  ],
+  "env": {
+    "HOST": "0.0.0.0",
+    "PORT": "8000",
+    "GEMINI_API_KEY": "@gemini_api_key",
+    "BEARER_TOKEN": "@bearer_token"
+  },
+  "functions": {
+    "main.py": {
+      "maxDuration": 300
+    }
+  }
+}
