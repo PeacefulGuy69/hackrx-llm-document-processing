@@ -8,7 +8,7 @@ from pathlib import Path
 
 import fitz  # PyMuPDF
 import docx
-from email.mime.text import MimeText
+from email.mime.text import MIMEText
 from email.parser import Parser
 import tiktoken
 

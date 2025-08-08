@@ -5,7 +5,7 @@ import numpy as np
 from typing import List, Optional, Dict, Any
 import faiss
 from sentence_transformers import SentenceTransformer
-from openai import AsyncOpenAI
+import google.generativeai as genai
 
 from models import DocumentChunk, RetrievedClause
 from config import config
@@ -22,7 +22,7 @@ class VectorStore:
         self.index = None
         self.chunks: List[DocumentChunk] = []
         self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')  # Fast and efficient
-        self.openai_client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
+        genai.configure(api_key=config.GEMINI_API_KEY)
         self.index_path = config.FAISS_INDEX_PATH
         
         # Create directory if it doesn't exist
@@ -34,20 +34,38 @@ class VectorStore:
     def _initialize_index(self):
         """Initialize FAISS index"""
         try:
+            # Get actual embedding dimension from the model
+            test_embedding = self.embedding_model.encode(["test"])
+            actual_dimension = test_embedding.shape[1]
+            
+            # Update dimension to match the actual model
+            self.dimension = actual_dimension
+            
             # Try to load existing index
             if os.path.exists(f"{self.index_path}.index"):
-                self.index = faiss.read_index(f"{self.index_path}.index")
-                
-                # Load chunks metadata
-                if os.path.exists(f"{self.index_path}.chunks"):
-                    with open(f"{self.index_path}.chunks", 'rb') as f:
-                        self.chunks = pickle.load(f)
-                
-                logger.info(f"Loaded existing FAISS index with {len(self.chunks)} chunks")
+                try:
+                    self.index = faiss.read_index(f"{self.index_path}.index")
+                    
+                    # Check if dimensions match
+                    if self.index.d != self.dimension:
+                        logger.warning(f"Existing index dimension ({self.index.d}) doesn't match model dimension ({self.dimension}). Creating new index.")
+                        self.index = faiss.IndexFlatIP(self.dimension)
+                        self.chunks = []
+                    else:
+                        # Load chunks metadata
+                        if os.path.exists(f"{self.index_path}.chunks"):
+                            with open(f"{self.index_path}.chunks", 'rb') as f:
+                                self.chunks = pickle.load(f)
+                        
+                        logger.info(f"Loaded existing FAISS index with {len(self.chunks)} chunks")
+                except Exception as e:
+                    logger.warning(f"Error loading existing index: {e}. Creating new index.")
+                    self.index = faiss.IndexFlatIP(self.dimension)
+                    self.chunks = []
             else:
                 # Create new index
                 self.index = faiss.IndexFlatIP(self.dimension)  # Inner Product for cosine similarity
-                logger.info("Created new FAISS index")
+                logger.info(f"Created new FAISS index with dimension {self.dimension}")
                 
         except Exception as e:
             logger.error(f"Error initializing FAISS index: {str(e)}")
@@ -62,6 +80,15 @@ class VectorStore:
             # Generate embeddings for chunks
             texts = [chunk.content for chunk in chunks]
             embeddings = await self._generate_embeddings(texts)
+            
+            # Ensure embeddings have correct dimension
+            if embeddings.shape[1] != self.dimension:
+                logger.error(f"Embedding dimension mismatch: got {embeddings.shape[1]}, expected {self.dimension}")
+                # Recreate index with correct dimension
+                self.dimension = embeddings.shape[1]
+                self.index = faiss.IndexFlatIP(self.dimension)
+                self.chunks = []
+                logger.info(f"Recreated FAISS index with dimension {self.dimension}")
             
             # Normalize embeddings for cosine similarity
             embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
@@ -129,17 +156,19 @@ class VectorStore:
     async def _generate_embeddings(self, texts: List[str]) -> np.ndarray:
         """Generate embeddings for texts"""
         try:
-            # Use OpenAI embeddings for better quality
-            response = await self.openai_client.embeddings.create(
-                model=config.EMBEDDING_MODEL,
-                input=texts
-            )
+            # Use Gemini embeddings for better quality
+            embeddings = []
+            for text in texts:
+                result = genai.embed_content(
+                    model=config.EMBEDDING_MODEL,
+                    content=text
+                )
+                embeddings.append(result['embedding'])
             
-            embeddings = [data.embedding for data in response.data]
             return np.array(embeddings)
             
         except Exception as e:
-            logger.warning(f"OpenAI embedding failed, using local model: {str(e)}")
+            logger.warning(f"Gemini embedding failed, using local model: {str(e)}")
             # Fallback to local model
             embeddings = self.embedding_model.encode(texts)
             

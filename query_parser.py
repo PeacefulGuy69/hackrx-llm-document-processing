@@ -2,7 +2,7 @@ import re
 import json
 import logging
 from typing import Dict, Any, Optional, List
-from openai import AsyncOpenAI
+import google.generativeai as genai
 
 from models import StructuredQuery, QueryType
 from config import config
@@ -15,7 +15,8 @@ class QueryParser:
     """Parses natural language queries into structured format"""
     
     def __init__(self):
-        self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
+        genai.configure(api_key=config.GEMINI_API_KEY)
+        self.model = genai.GenerativeModel(config.LLM_MODEL)
         self.extraction_prompt = self._build_extraction_prompt()
     
     async def parse_query(self, query: str) -> StructuredQuery:
@@ -56,17 +57,17 @@ class QueryParser:
     async def _extract_with_llm(self, query: str) -> Dict[str, Any]:
         """Extract structured information using LLM"""
         try:
-            response = await self.client.chat.completions.create(
-                model=config.LLM_MODEL,
-                messages=[
-                    {"role": "system", "content": self.extraction_prompt},
-                    {"role": "user", "content": f"Query: {query}"}
-                ],
-                temperature=0.1,
-                max_tokens=500
+            prompt = f"{self.extraction_prompt}\n\nQuery: {query}"
+            
+            response = self.model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.1,
+                    max_output_tokens=500
+                )
             )
             
-            content = response.choices[0].message.content
+            content = response.text
             
             # Try to parse JSON response
             try:

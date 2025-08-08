@@ -10,21 +10,21 @@ class Config:
     HOST = os.getenv("HOST", "0.0.0.0")
     PORT = int(os.getenv("PORT", 8000))
     DEBUG = os.getenv("DEBUG", "False").lower() == "true"
-    API_PREFIX = os.getenv("API_PREFIX", "/api/v1")
+    API_PREFIX = os.getenv("API_PREFIX", "")
     
     # Authentication
     BEARER_TOKEN = os.getenv("BEARER_TOKEN", "60359a637b23864b320999e8d98517f239970ee339c266bde110414ce8fb9ed1")
     
-    # OpenAI Configuration
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4-turbo-preview")
-    EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+    # Gemini Configuration
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    LLM_MODEL = os.getenv("LLM_MODEL", "gemini-pro")
+    EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "models/text-embedding-004")
     MAX_TOKENS = int(os.getenv("MAX_TOKENS", 4000))
     TEMPERATURE = float(os.getenv("TEMPERATURE", 0.1))
     
     # Vector Database Configuration
     FAISS_INDEX_PATH = os.getenv("FAISS_INDEX_PATH", "./vector_store/faiss_index")
-    VECTOR_DIMENSION = int(os.getenv("VECTOR_DIMENSION", 1536))
+    VECTOR_DIMENSION = int(os.getenv("VECTOR_DIMENSION", 384))  # Correct dimension for all-MiniLM-L6-v2
     TOP_K_RESULTS = int(os.getenv("TOP_K_RESULTS", 10))
     
     # Document Processing Configuration
@@ -40,8 +40,8 @@ class Config:
     @classmethod
     def validate_config(cls):
         """Validate required configuration"""
-        if not cls.OPENAI_API_KEY:
-            raise ValueError("OPENAI_API_KEY environment variable is required")
+        if not cls.GEMINI_API_KEY:
+            raise ValueError("GEMINI_API_KEY environment variable is required")
         
         return True
 

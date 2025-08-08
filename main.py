@@ -101,7 +101,7 @@ async def health_check():
         )
 
 
-@app.post(f"{config.API_PREFIX}/hackrx/run", response_model=QueryResponse)
+@app.post("/hackrx/run", response_model=QueryResponse)
 async def process_hackrx_queries(
     request: QueryRequest,
     credentials: HTTPAuthorizationCredentials = Depends(verify_token)

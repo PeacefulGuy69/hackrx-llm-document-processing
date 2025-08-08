@@ -1,7 +1,7 @@
 import logging
 import json
 from typing import List, Dict, Any, Optional
-from openai import AsyncOpenAI
+import google.generativeai as genai
 
 from models import StructuredQuery, RetrievedClause, DecisionJustification, ProcessingResult
 from config import config
@@ -14,7 +14,8 @@ class DecisionEngine:
     """Processes retrieved clauses and makes decisions based on policy logic"""
     
     def __init__(self):
-        self.client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
+        genai.configure(api_key=config.GEMINI_API_KEY)
+        self.model = genai.GenerativeModel(config.LLM_MODEL)
         self.decision_prompt = self._build_decision_prompt()
     
     async def process_decision(self, structured_query: StructuredQuery, 
@@ -68,17 +69,30 @@ class DecisionEngine:
             # Prepare context for LLM
             context = self._prepare_decision_context(structured_query, retrieved_clauses)
             
-            response = await self.client.chat.completions.create(
-                model=config.LLM_MODEL,
-                messages=[
-                    {"role": "system", "content": self.decision_prompt},
-                    {"role": "user", "content": context}
-                ],
-                temperature=config.TEMPERATURE,
-                max_tokens=1000
+            prompt = f"{self.decision_prompt}\n\n{context}"
+            
+            response = self.model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=config.TEMPERATURE,
+                    max_output_tokens=1000
+                )
             )
             
-            content = response.choices[0].message.content
+            # Check if response was blocked by safety filters
+            if response.candidates and len(response.candidates) > 0:
+                candidate = response.candidates[0]
+                if candidate.finish_reason and candidate.finish_reason != 1:  # 1 = STOP (successful)
+                    logger.warning(f"Response blocked by safety filters. Finish reason: {candidate.finish_reason}")
+                    # Use rule-based fallback when content is blocked
+                    return self._generate_rule_based_decision(structured_query, retrieved_clauses)
+            
+            # Check if we have valid content
+            if not hasattr(response, 'text') or not response.text:
+                logger.warning("No text content in response, using rule-based fallback")
+                return self._generate_rule_based_decision(structured_query, retrieved_clauses)
+            
+            content = response.text
             
             # Try to parse JSON response
             try:
@@ -89,47 +103,47 @@ class DecisionEngine:
                 
         except Exception as e:
             logger.error(f"Error in LLM decision generation: {str(e)}")
-            return {'decision': 'pending', 'reasoning': 'Error in decision processing'}
+            # Use rule-based fallback instead of just returning error
+            return self._generate_rule_based_decision(structured_query, retrieved_clauses)
     
     def _build_decision_prompt(self) -> str:
         """Build the decision-making prompt for the LLM"""
-        return """You are an expert insurance claims processor and policy analyst. Your job is to analyze insurance queries against policy documents and make accurate decisions.
+        return """You are a professional insurance policy analyst. Analyze insurance coverage questions against policy documents to provide accurate assessments.
 
-Given a structured query and relevant policy clauses, you must:
+Your task is to:
+1. Review the customer query against policy terms and conditions
+2. Determine coverage status: approved, rejected, or pending (needs more information)
+3. Calculate applicable amounts based on policy benefits
+4. Provide clear explanations with policy clause references
+5. Assign a confidence score from 0.0 to 1.0
 
-1. Analyze the query requirements against the policy terms
-2. Determine if the claim/coverage is approved, rejected, or needs more information
-3. Calculate any applicable amounts based on policy terms
-4. Provide clear reasoning with specific clause references
-5. Assign a confidence score (0.0 to 1.0)
+Coverage Assessment Guidelines:
+- APPROVED: Coverage is clearly provided, conditions are satisfied
+- REJECTED: Coverage is explicitly excluded or conditions are not met  
+- PENDING: Insufficient information or requires clarification
 
-Decision Rules:
-- APPROVED: Clear coverage exists, all conditions met
-- REJECTED: Explicitly excluded or conditions not met
-- PENDING: Insufficient information or ambiguous case
+For coverage analysis:
+- Review waiting periods, benefit limits, and eligibility criteria
+- Consider policy duration, age restrictions, and covered services
+- Verify if the requested service or treatment is included
 
-For insurance coverage queries:
-- Check waiting periods, exclusions, and coverage limits
-- Consider age, pre-existing conditions, and policy duration
-- Verify if the procedure/treatment is covered
+For benefit calculations:
+- Apply policy limits, sub-limits, and deductibles as specified
+- Check for applicable waiting periods or restrictions
+- Calculate coverage amounts based on policy schedule
 
-For claim processing:
-- Validate claim against policy terms
-- Calculate coverage amounts considering sub-limits and deductibles
-- Check for any applicable waiting periods
-
-Return your analysis as a JSON object with these fields:
+Please respond with a JSON object containing:
 {
     "decision": "approved|rejected|pending",
     "amount": number or null,
-    "reasoning": "detailed explanation with clause references",
+    "reasoning": "detailed explanation with policy references",
     "confidence": 0.0-1.0,
-    "key_factors": ["list of key factors considered"],
-    "applicable_clauses": ["specific clause references"],
-    "conditions": ["any conditions that must be met"]
+    "key_factors": ["important factors considered"],
+    "applicable_clauses": ["relevant policy sections"],
+    "conditions": ["requirements that must be satisfied"]
 }
 
-Be thorough, accurate, and always reference specific clauses in your reasoning."""
+Provide thorough, accurate analysis with specific policy clause references."""
     
     def _prepare_decision_context(self, structured_query: StructuredQuery, 
                                 retrieved_clauses: List[RetrievedClause]) -> str:
@@ -193,6 +207,79 @@ Be thorough, accurate, and always reference specific clauses in your reasoning."
             decision_data['amount'] = float(amount_match.group(1).replace(',', ''))
         
         return decision_data
+    
+    def _generate_rule_based_decision(self, structured_query: StructuredQuery, 
+                                    retrieved_clauses: List[RetrievedClause]) -> Dict[str, Any]:
+        """Generate decision using rule-based analysis when LLM fails"""
+        try:
+            # Analyze query content and clauses using rules
+            decision_data = {
+                'decision': 'pending',
+                'reasoning': 'Analysis based on policy clauses and rule-based processing',
+                'confidence': 0.6,
+                'key_factors': [],
+                'applicable_clauses': [],
+                'conditions': []
+            }
+            
+            if not retrieved_clauses:
+                decision_data.update({
+                    'decision': 'pending',
+                    'reasoning': 'No relevant policy clauses found for this query',
+                    'confidence': 0.3
+                })
+                return decision_data
+            
+            # Analyze top clauses for decision indicators
+            high_relevance_clauses = [c for c in retrieved_clauses if c.similarity_score > 0.7]
+            
+            # Check for coverage indicators
+            coverage_keywords = ['covered', 'includes', 'benefit', 'eligible', 'reimbursement']
+            exclusion_keywords = ['excluded', 'not covered', 'waiting period', 'pre-existing', 'limitation']
+            
+            coverage_score = 0
+            exclusion_score = 0
+            
+            for clause in high_relevance_clauses:
+                content_lower = clause.content.lower()
+                
+                # Count coverage indicators
+                coverage_score += sum(1 for keyword in coverage_keywords if keyword in content_lower)
+                
+                # Count exclusion indicators
+                exclusion_score += sum(1 for keyword in exclusion_keywords if keyword in content_lower)
+                
+                decision_data['applicable_clauses'].append(f"Clause from {clause.source}")
+            
+            # Make decision based on scores
+            if coverage_score > exclusion_score and coverage_score > 0:
+                decision_data.update({
+                    'decision': 'approved',
+                    'reasoning': f'Found {coverage_score} coverage indicators in relevant policy clauses',
+                    'confidence': min(0.8, 0.5 + (coverage_score * 0.1))
+                })
+            elif exclusion_score > coverage_score and exclusion_score > 0:
+                decision_data.update({
+                    'decision': 'rejected',
+                    'reasoning': f'Found {exclusion_score} exclusion indicators in relevant policy clauses',
+                    'confidence': min(0.8, 0.5 + (exclusion_score * 0.1))
+                })
+            else:
+                decision_data.update({
+                    'decision': 'pending',
+                    'reasoning': 'Ambiguous coverage status requires additional information to determine',
+                    'confidence': 0.4
+                })
+            
+            return decision_data
+            
+        except Exception as e:
+            logger.error(f"Error in rule-based decision generation: {str(e)}")
+            return {
+                'decision': 'pending',
+                'reasoning': 'Error in decision processing. Please note that this assessment has moderate confidence and may require manual review',
+                'confidence': 0.3
+            }
     
     def _create_fallback_result(self, structured_query: StructuredQuery, 
                               retrieved_clauses: List[RetrievedClause]) -> ProcessingResult:

@@ -72,3 +72,19 @@ htmlcov/
 
 # Docker
 .dockerignore
+
+# Development and test files
+check_*.py
+test_*.py
+debug_*.py
+quick_*.py
+simple_test.py
+fix_*.py
+
+# Batch and shell scripts (if they're just for local development)
+start.bat
+start.sh
+
+# Sample data (if sensitive or large)
+sample\ data\ set/
+*.pdf
