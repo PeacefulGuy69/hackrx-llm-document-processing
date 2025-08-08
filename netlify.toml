@@ -1,7 +1,7 @@
 [build]
   functions = "netlify/functions"
-  command = "python build.py"
-  publish = "dist"
+  command = "python -m pip install --upgrade pip && pip install -r requirements.txt"
+  publish = "."
 
 [build.environment]
   PYTHON_VERSION = "3.11"
@@ -9,12 +9,39 @@
 [functions]
   node_bundler = "esbuild"
 
+# Serve the index.html for the root
+[[redirects]]
+  from = "/"
+  to = "/index.html"
+  status = 200
+  conditions = {Role = ["visitor"]}
+
+# Handle API routes
 [[redirects]]
   from = "/api/*"
-  to = "/.netlify/functions/main/:splat"
+  to = "/.netlify/functions/main"
   status = 200
 
+# Handle FastAPI docs routes
+[[redirects]]
+  from = "/docs*"
+  to = "/.netlify/functions/main"
+  status = 200
+
+# Handle openapi routes  
+[[redirects]]
+  from = "/openapi.json"
+  to = "/.netlify/functions/main"
+  status = 200
+
+# Handle health check
+[[redirects]]
+  from = "/health"
+  to = "/.netlify/functions/main"
+  status = 200
+
+# Fallback for all other routes to the FastAPI app
 [[redirects]]
   from = "/*"
-  to = "/.netlify/functions/main/:splat"
+  to = "/.netlify/functions/main"
   status = 200

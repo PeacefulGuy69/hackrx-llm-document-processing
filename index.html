@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HackRx LLM Document Processing</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .api-link {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 10px;
+        }
+        .api-link:hover {
+            background-color: #0056b3;
+        }
+        .status {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 HackRx LLM Document Processing API</h1>
+        
+        <div class="status">
+            ✅ API is deployed and running successfully!
+        </div>
+        
+        <h2>Available Endpoints:</h2>
+        <div>
+            <a href="/docs" class="api-link">📚 Interactive API Documentation</a>
+            <a href="/openapi.json" class="api-link">📋 OpenAPI Schema</a>
+            <a href="/health" class="api-link">❤️ Health Check</a>
+        </div>
+        
+        <h2>API Features:</h2>
+        <ul>
+            <li>Document Processing with LLM</li>
+            <li>Vector Store Search</li>
+            <li>Multi-format Document Support</li>
+            <li>FastAPI with Automatic Documentation</li>
+        </ul>
+        
+        <h2>Usage:</h2>
+        <p>Visit <strong>/docs</strong> for interactive API documentation and testing interface.</p>
+        
+        <script>
+            // Test if the API is accessible
+            fetch('/health')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('API Health Check:', data);
+                })
+                .catch(error => {
+                    console.error('API Error:', error);
+                });
+        </script>
+    </div>
+</body>
+</html>
