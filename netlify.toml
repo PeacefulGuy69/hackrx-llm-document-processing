@@ -1,7 +1,7 @@
 [build]
   functions = "netlify/functions"
-  command = "python -m pip install --upgrade pip && pip install -r requirements.txt"
-  publish = "."
+  command = "python build.py"
+  publish = "dist"
 
 [build.environment]
   PYTHON_VERSION = "3.11"
